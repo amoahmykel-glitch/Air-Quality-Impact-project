@@ -1,77 +1,202 @@
+# ==========================================
+# Air Quality & Health Impact Prediction App
+# ==========================================
 
 import streamlit as st
+import numpy as np
 import pandas as pd
 import joblib
 
-# ------------------------------
-# PAGE CONFIG
-# ------------------------------
+
+# ==========================================
+# Page Configuration
+# ==========================================
+
 st.set_page_config(
-    page_title="Air Quality Health Impact Classification",
+    page_title="Air Quality Health Impact Predictor",
     page_icon="🌍",
-    layout="centered"
+    layout="wide"
 )
 
-# ------------------------------
-# TITLE
-# ------------------------------
-st.title("🌍 Air Quality Health Impact Classification")
-st.write("Predict the health impact level based on air quality parameters.")
+st.title("🌍 Air Quality & Health Impact Classification Dashboard")
+st.markdown(
+"""
+Predict **Health Impact Severity** using environmental and healthcare indicators.
 
-# ------------------------------
-# LOAD MODEL
-# ------------------------------
+Model Used: **Random Forest Classifier**
+"""
+)
+
+st.divider()
+
+
+# ==========================================
+# Load Model Safely
+# ==========================================
+
 @st.cache_resource
-
 def load_model():
-    return joblib.load("air_quality_model.pkl")
+    try:
+        model = joblib.load("model/random_forest.pkl")
+        scaler = joblib.load("model/scaler.pkl")
+        return model, scaler
+    except:
+        st.error("Model files not found. Please ensure `.pkl` files exist in /model folder.")
+        st.stop()
 
-model = load_model()
+model, scaler = load_model()
 
-# ------------------------------
-# INPUT FIELDS
-# ------------------------------
-st.subheader("Enter Air Quality Details")
 
-pm25 = st.number_input("PM2.5", min_value=0.0, value=25.0)
-pm10 = st.number_input("PM10", min_value=0.0, value=40.0)
-no2 = st.number_input("NO2", min_value=0.0, value=20.0)
-so2 = st.number_input("SO2", min_value=0.0, value=10.0)
-co = st.number_input("CO", min_value=0.0, value=1.0)
-o3 = st.number_input("O3", min_value=0.0, value=30.0)
+# ==========================================
+# Sidebar Inputs
+# ==========================================
 
-# ------------------------------
-# PREDICTION
-# ------------------------------
-if st.button("Predict Health Impact"):
+st.sidebar.header("⚙️ Enter Environmental Data")
 
-    input_data = pd.DataFrame([
-        {
-            "PM2.5": pm25,
-            "PM10": pm10,
-            "NO2": no2,
-            "SO2": so2,
-            "CO": co,
-            "O3": o3
-        }
-    ])
+AQI = st.sidebar.number_input("AQI", 0.0, 500.0, 150.0)
 
-    prediction = model.predict(input_data)[0]
+st.sidebar.subheader("Pollution Indicators")
 
-    st.success(f"Predicted Health Impact: {prediction}")
+PM10 = st.sidebar.number_input("PM10", 0.0, 300.0, 80.0)
+PM2_5 = st.sidebar.number_input("PM2.5", 0.0, 200.0, 50.0)
+NO2 = st.sidebar.number_input("NO2", 0.0, 200.0, 60.0)
+SO2 = st.sidebar.number_input("SO2", 0.0, 100.0, 20.0)
+O3 = st.sidebar.number_input("O3", 0.0, 300.0, 100.0)
 
-    # Optional health messages
-    if str(prediction).lower() == "good":
-        st.info("Air quality is acceptable.")
+st.sidebar.subheader("Environmental Conditions")
 
-    elif str(prediction).lower() == "moderate":
-        st.warning("Sensitive people should limit outdoor activity.")
+Temperature = st.sidebar.number_input("Temperature (°C)", -10.0, 50.0, 25.0)
+Humidity = st.sidebar.number_input("Humidity (%)", 0.0, 100.0, 50.0)
+WindSpeed = st.sidebar.number_input("Wind Speed", 0.0, 30.0, 5.0)
 
-    elif str(prediction).lower() == "poor":
-        st.error("Air quality may affect everyone.")
+st.sidebar.subheader("Healthcare Data")
 
-# ------------------------------
-# FOOTER
-# ------------------------------
-st.markdown("---")
-st.caption("Built with Streamlit")
+RespiratoryCases = st.sidebar.number_input("Respiratory Cases", 0, 50, 5)
+CardiovascularCases = st.sidebar.number_input("Cardiovascular Cases", 0, 30, 3)
+HospitalAdmissions = st.sidebar.number_input("Hospital Admissions", 0, 20, 1)
+
+HealthImpactScore = st.sidebar.number_input("Health Impact Score", 0.0, 100.0, 90.0)
+
+
+# ==========================================
+# AQI Category
+# ==========================================
+
+st.header("🌫 AQI Category")
+
+if AQI <= 50:
+    category = "Good"
+elif AQI <= 100:
+    category = "Moderate"
+elif AQI <= 150:
+    category = "Unhealthy for Sensitive Groups"
+elif AQI <= 200:
+    category = "Unhealthy"
+elif AQI <= 300:
+    category = "Very Unhealthy"
+else:
+    category = "Hazardous"
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric("AQI Value", AQI)
+
+with col2:
+    st.write(f"Air Quality Category: **{category}**")
+
+
+st.divider()
+
+
+# ==========================================
+# Charts Section
+# ==========================================
+
+st.header("📊 Air Pollution Dashboard")
+
+col1, col2 = st.columns(2)
+
+with col1:
+
+    st.subheader("Pollution Indicators")
+
+    pollution_df = pd.DataFrame({
+        "Pollutant": ["PM10", "PM2.5", "NO2", "SO2", "O3"],
+        "Value": [PM10, PM2_5, NO2, SO2, O3]
+    })
+
+    st.bar_chart(pollution_df.set_index("Pollutant"))
+
+with col2:
+
+    st.subheader("Environmental Conditions")
+
+    env_df = pd.DataFrame({
+        "Metric": ["Temperature", "Humidity", "Wind Speed"],
+        "Value": [Temperature, Humidity, WindSpeed]
+    })
+
+    st.line_chart(env_df.set_index("Metric"))
+
+
+st.divider()
+
+
+# ==========================================
+# Health Indicators
+# ==========================================
+
+st.header("🏥 Health Indicators")
+
+health_df = pd.DataFrame({
+    "Indicator": [
+        "Respiratory Cases",
+        "Cardiovascular Cases",
+        "Hospital Admissions"
+    ],
+    "Value": [
+        RespiratoryCases,
+        CardiovascularCases,
+        HospitalAdmissions
+    ]
+})
+
+st.bar_chart(health_df.set_index("Indicator"))
+
+
+# ==========================================
+# Feature Importance
+# ==========================================
+
+st.header("🔎 Feature Importance")
+
+importance = model.feature_importances_
+
+features = [
+    "AQI", "PM10", "PM2_5", "NO2", "SO2", "O3",
+    "Temperature", "Humidity", "WindSpeed",
+    "RespiratoryCases", "CardiovascularCases",
+    "HospitalAdmissions", "HealthImpactScore"
+]
+
+importance_df = pd.DataFrame({
+    "Feature": features,
+    "Importance": importance
+}).sort_values("Importance", ascending=False)
+
+st.bar_chart(importance_df.set_index("Feature"))
+
+
+# ==========================================
+# Footer
+# ==========================================
+
+st.divider()
+
+st.caption(
+"""
+Air Quality Health Impact Classification  
+Machine Learning Deployment Project
+"""
+)
